@@ -5,7 +5,11 @@
 >
 > For support, see <http://support.osvr.com>
 
-This is a plugin for OSVR that provides access to Hillcrest Labs' FSM-9 tracker from OSVR applications. It builds on the associated vrpn_Freespace.
+This is a plugin for OSVR that provides access to Hillcrest Labs' FSM-9 tracker from OSVR applications.
+It requires a patched build of VRPN with the following files: https://www.dropbox.com/s/66i9mmu8oop0c9l/vrpn_Freespace.zip?dl=0
+Also requires <a href="https://launchpad.net/libfreespace">libfreespace 0.7</a>.
+In CMake gui, set CMAKE_PREFIX_PATH to the OSVR-Core Snapshot directory.
+You may also need to manually set libfreespace and jsoncpp root directories.
 
 ## Licenses
 

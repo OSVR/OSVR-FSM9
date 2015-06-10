@@ -1,0 +1,34 @@
+{
+  "deviceVendor": "Hillcrest Labs",
+  "deviceName": "FSM-9 Tracker",
+  "author": "Greg Aring <greg@sensics.com>",
+  "version": 1,
+  "lastModified": "2015-04-22T04:03:54.323Z",
+  "interfaces": {
+    "tracker": {
+      "count": 1,
+      "bounded": true,
+      "position": false,
+      "orientation": true
+    }
+  },
+  "semantic": {
+    "hmd": "tracker/0"
+  },
+  "automaticAliases": {
+    "/me/head": {
+      "rotate": {
+        "axis": "x",
+        "degrees": 90
+      },
+      "child": {
+        "changeBasis": {
+          "x": "-x",
+          "y": "-z",
+          "z": "y"
+        },
+        "child": "semantic/hmd"
+      }
+    }
+  }
+}

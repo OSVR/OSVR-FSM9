@@ -117,8 +117,9 @@ class FreespaceDevice {
 				std::cout << "FREESPACE_MESSAGE_DATAMODECONTROLV2RESPONSE " << std::endl;
 				break;
 			case FREESPACE_MESSAGE_MOTIONENGINEOUTPUT:
-				std::cout << "FREESPACE_MESSAGE_MOTIONENGINEOUTPUT " << std::endl;
-				//handleMotionEngineOutput(s.motionEngineOutput);
+				m_freespaceTracker->GetOrientation(yaw, pitch, roll, s.userFrame);
+				trackerOrientationState = convEulerToQuat(yaw, pitch, roll);
+				osvrDeviceTrackerSendOrientation(m_dev, m_tracker, &trackerOrientationState, 0);
 				break;
 			default:
 				std::cout << "Received an unhandled message from freespace device. " << std::endl;

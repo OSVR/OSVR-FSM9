@@ -109,7 +109,7 @@ namespace {
 					//rc = freespace_util_getAngularVelocity(&message.motionEngineOutput, &angVel);
 					rc = freespace_util_getAngPos(&message.motionEngineOutput, &angVel);
 					if (rc == 0) {
-						printf("X: % 6.2f, Y: % 6.2f, Z: % 6.2f\n", angVel.x, angVel.y, angVel.z);
+						//printf("X: % 6.2f, Y: % 6.2f, Z: % 6.2f\n", angVel.x, angVel.y, angVel.z);
 						OSVR_OrientationState orientation = { angVel.x, angVel.y, angVel.z, angVel.w };
 						osvrDeviceTrackerSendOrientation(m_dev, m_tracker, &orientation, 0);
 					}		

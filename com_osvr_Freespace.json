@@ -7,7 +7,7 @@
   "interfaces": {
     "tracker": {
       "count": 1,
-      "bounded": false,
+      "bounded": true,
       "position": false,
       "orientation": true
     }

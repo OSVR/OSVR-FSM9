@@ -46,7 +46,7 @@ class FreespaceTracker {
 	static void hotplug_Callback(enum freespace_hotplugEvent evnt, FreespaceDeviceId id, void* params) {
 		FreespaceTracker* sensor = (FreespaceTracker*)params;
 
-		//printf("Freespace hot plug callback triggered");
+		printf("Freespace hot plug callback triggered");
 
 		if (evnt == FREESPACE_HOTPLUG_REMOVAL) {
 			//sensor->_removeDevice(id);
@@ -57,49 +57,67 @@ class FreespaceTracker {
 	}
 	
   public:
-	  static FreespaceTracker* create(const char *name,
+	  
+
+	  const unsigned MAX_DEVICES = 100;
+	  FreespaceDeviceId devices[100];
+	  int numIds;
+	  FreespaceTracker(const char *name,
 		  int device_index = 0,
 		  bool send_body_frames = false,
 		  bool send_user_frames = true)
 	  {
+		  //create//
 		  // initialize libfreespace
 		  freespaceInit();
 
-		  const unsigned MAX_DEVICES = 100;
-		  FreespaceDeviceId devices[MAX_DEVICES];
-		  int numIds = 0;
 		  int rc;
+		  std::cout << "before " << numIds << ".\n" << std::endl;
 		  rc = freespace_getDeviceList(devices, MAX_DEVICES, &numIds);
+		  std::cout << "numids " << numIds << ".\n" << std::endl;
 		  if ((rc != FREESPACE_SUCCESS) || (numIds < (device_index + 1))) {
-			  std::cout << "vrpn_Freespace::create: Didn't find enough devices: " << numIds << ".\n" << std::endl;
-			  return nullptr;
+
+			  std::cout << "FreespaceTracker::FreespaceTracker: Didn't find enough devices: " << numIds << ".\n" << std::endl;
 		  }
 		  FreespaceDeviceId freespaceId = devices[device_index];
 
 		  rc = freespace_openDevice(freespaceId);
 		  if (rc != FREESPACE_SUCCESS) {
-			  std::cout << "vrpn_Freespace::create: Could not open device " << device_index << ".\n" << std::endl;
-			  return nullptr;
+			  std::cout << "FreespaceTracker::FreespaceTracker: Could not open device " << device_index << ".\n" << std::endl;
 		  }
 		  struct FreespaceDeviceInfo deviceInfo;
 		  rc = freespace_getDeviceInfo(freespaceId, &deviceInfo);
 		  if (rc != FREESPACE_SUCCESS) {
-			  return nullptr;
+			  std::cout << "FreespaceTracker::FreespaceTracker: Could not get device info " << device_index << ".\n" << std::endl;
 		  }
 
-		 // printf("\nFreespace Device Info:\n----------------------\nDevice = %s\nVendor ID = 0x%x (%d) \nProduct ID = 0x%x (%d)\n\n", deviceInfo.name, deviceInfo.vendor, deviceInfo.product, deviceInfo.product);
+		  // printf("\nFreespace Device Info:\n----------------------\nDevice = %s\nVendor ID = 0x%x (%d) \nProduct ID = 0x%x (%d)\n\n", deviceInfo.name, deviceInfo.vendor, deviceInfo.product, deviceInfo.product);
 
 		  rc = freespace_flush(freespaceId);
 		  if (rc != FREESPACE_SUCCESS) {
 			  std::cout << "freespaceInputThread: Error flushing device:" << rc << ".\n" << std::endl;
-			  return nullptr;
 		  }
 
-		  FreespaceTracker* dev = new FreespaceTracker(freespaceId, &deviceInfo, name);
-		  dev->deviceSetConfiguration(send_body_frames, send_user_frames);
-		  std::cout << "Added freespace device:" << name << "\n" << std::endl;
-		  return dev;
+		  //endcreate//
+		  _freespaceDevice = freespaceId;
+		  std::cout << "freespacetracker constructor.\n" << std::endl;
+		  memcpy(&_deviceInfo, &deviceInfo, sizeof(_deviceInfo));
+		  memset(&_lastBodyFrameTime, 0, sizeof(_lastBodyFrameTime));
+		  _timestamp.seconds = 0;
+		  deviceSetConfiguration(send_body_frames, send_user_frames);
+
+		  if (rc == FREESPACE_SUCCESS && !_initialized)
+		  {
+			  std::cout << "Added freespace device:" << name << "\n" << std::endl;
+			  _initialized = true;
+		  }
+		  else
+		  {
+			  std::cout << "Added freespace device:" << name << "\n" << std::endl;
+			  _initialized = false;
+		  }
 	  }
+
 	  //tell freespace t unit
     ~FreespaceTracker() 
 	{
@@ -112,6 +130,7 @@ class FreespaceTracker {
 
 		deviceUnconfigure();
 		freespace_closeDevice(_freespaceDevice);
+		freespace_exit();
 	}
 
 	void GetOrientation(long &yaw, long &pitch, long &roll, const struct freespace_UserFrame& user)
@@ -311,32 +330,72 @@ class FreespaceTracker {
 
 	FreespaceDeviceId _freespaceDevice;
 	FreespaceDeviceInfo _deviceInfo;
+	bool _initialized = false;
 
 	private:
-		static bool _freespace_initialized;
+		/*FreespaceTracker* create(const char *name,
+			int device_index = 0,
+			bool send_body_frames = false,
+			bool send_user_frames = true)
+		{
+			// initialize libfreespace
+			freespaceInit();
+
+			const unsigned MAX_DEVICES = 100;
+			FreespaceDeviceId devices[MAX_DEVICES];
+			int numIds = 0;
+			int rc;
+			std::cout << "before " << numIds << ".\n" << std::endl;
+			rc = freespace_getDeviceList(devices, MAX_DEVICES, &numIds);
+			std::cout << "numids " << numIds << ".\n" << std::endl;
+			if ((rc != FREESPACE_SUCCESS) || (numIds < (device_index + 1))) {
+
+				std::cout << "vrpn_Freespace::create: Didn't find enough devices: " << numIds << ".\n" << std::endl;
+				return nullptr;
+			}
+			FreespaceDeviceId freespaceId = devices[device_index];
+
+			rc = freespace_openDevice(freespaceId);
+			if (rc != FREESPACE_SUCCESS) {
+				std::cout << "vrpn_Freespace::create: Could not open device " << device_index << ".\n" << std::endl;
+				return nullptr;
+			}
+			struct FreespaceDeviceInfo deviceInfo;
+			rc = freespace_getDeviceInfo(freespaceId, &deviceInfo);
+			if (rc != FREESPACE_SUCCESS) {
+				return nullptr;
+			}
+
+			// printf("\nFreespace Device Info:\n----------------------\nDevice = %s\nVendor ID = 0x%x (%d) \nProduct ID = 0x%x (%d)\n\n", deviceInfo.name, deviceInfo.vendor, deviceInfo.product, deviceInfo.product);
+
+			rc = freespace_flush(freespaceId);
+			if (rc != FREESPACE_SUCCESS) {
+				std::cout << "freespaceInputThread: Error flushing device:" << rc << ".\n" << std::endl;
+				return nullptr;
+			}
+
+			FreespaceTracker* dev = new FreespaceTracker(freespaceId, &deviceInfo, name);
+			dev->deviceSetConfiguration(send_body_frames, send_user_frames);
+			std::cout << "Added freespace device:" << name << "\n" << std::endl;
+			return dev;
+		}*/
 		static void freespaceInit() {
 			static bool freespaceInit = false;
 			if (!freespaceInit) {
 				freespaceInit = true;
 				int rc = freespace_init();
 				if (rc != FREESPACE_SUCCESS) {
-					fprintf(stderr, "vrpn_Freespace::freespaceInit: failed to init freespace lib. rc=%d\n", rc);
+					std::cout << "vrpn_Freespace::freespaceInit: failed to init freespace lib. rc= " << rc << ".\n" << std::endl;
+					freespaceInit = false;
 				}
 			}
 		}
-		/**
-		* private constructor since opening of the device can fail.
-		*/
-		FreespaceTracker(FreespaceDeviceId freespaceId, struct FreespaceDeviceInfo* deviceInfo, const char *name) :_freespaceDevice(freespaceId)
-		{
-			memcpy(&_deviceInfo, deviceInfo, sizeof(_deviceInfo));
-			memset(&_lastBodyFrameTime, 0, sizeof(_lastBodyFrameTime));
-			_timestamp.seconds = 0;
-		}
-
+		
+		
 		bool _sendBodyFrames;
 		bool _sendUserFrames;
 		osvr::util::time::TimeValue _timestamp;
+		int _deviceCount = 0;
 
 	protected:
 	  float _lastBodyFrameTime;

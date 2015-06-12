@@ -30,10 +30,9 @@
 // Internal Includes
 #include <osvr/PluginKit/PluginKit.h>
 #include <osvr/PluginKit/TrackerInterfaceC.h>
-#include "FreespaceTracker.h"
 
 // Generated JSON header file
-#include "com_osvr_FSM9_json.h"
+#include "com_osvr_Freespace_json.h"
 
 // Library/third-party includes
 #include <math.h>
@@ -45,179 +44,76 @@
 
 // Anonymous namespace to avoid symbol collision
 namespace {
-
+OSVR_MessageType dummyMessage;
 class FreespaceDevice {
-	
   public:
-	  FreespaceDevice(OSVR_PluginRegContext ctx, FreespaceTracker* trackerInst) {
+	  FreespaceDevice(OSVR_PluginRegContext ctx) {
         /// Create the initialization options
         OSVR_DeviceInitOptions opts = osvrDeviceCreateInitOptions(ctx);
-		
-		/// Assign the FreespaceTracker
-		m_freespaceTracker = trackerInst;
 
         /// Indicate that we'll report tracking
         osvrDeviceTrackerConfigure(opts, &m_tracker);
 
         /// Create the sync device token with the options
-        m_dev.initSync(ctx, "FreespaceDevice", opts);
+        m_dev.initAsync(ctx, "FreespaceDevice", opts);
 
         /// Send JSON descriptor
-        m_dev.sendJsonDescriptor(com_osvr_FSM9_json);
+        m_dev.sendJsonDescriptor(com_osvr_Freespace_json);
 
         /// Register update callback
         m_dev.registerUpdateCallback(this);
     }
 
+	/// In this case, the core spawns a thread, with a loop calling this
+	/// function as long as things are running. So this function waits for the
+	/// next message from the device and passes it on.
     OSVR_ReturnCode update() {
-
-		struct freespace_message s;
-		/*
-		* Send configuration information to the device repeatedly to force the
-		* device into the correct mode.  This method ensures the correct mode
-		* even if the Freespace device was asleep during initialization or if
-		* the tracker resets.
-		*/
-		osvr::util::time::TimeValue timestamp;
-
-		osvrTimeValueGetNow(&timestamp);
-		if (m_timestamp.seconds != timestamp.seconds) {
-			m_timestamp.seconds = timestamp.seconds;
-			m_freespaceTracker->deviceConfigure();
+		/// Make up some dummy data that changes to report.
+		m_myVal = (m_myVal + 0.1);
+		if (m_myVal > 10.0) {
+			m_myVal = 0;
 		}
-		long yaw, pitch, roll;
-		OSVR_OrientationState trackerOrientationState;
-		// Do not block, read as many messages as 
-		if( freespace_readMessage(m_freespaceTracker->_freespaceDevice, &s, 0) == FREESPACE_SUCCESS) {
-			switch (s.messageType) {
-			case FREESPACE_MESSAGE_LINKSTATUS:
-				std::cout << "FREESPACE_MESSAGE_LINKSTATUS " << std::endl;
-				m_freespaceTracker->handleLinkStatus(s.linkStatus);
-				break;
-			case FREESPACE_MESSAGE_BODYFRAME:
-				std::cout << "FREESPACE_MESSAGE_BODYFRAME " << std::endl;
-				//m_freespaceTracker->handleBodyFrame(s.bodyFrame);
-				break;
-			case FREESPACE_MESSAGE_USERFRAME:
-				std::cout << "FREESPACE_MESSAGE_USERFRAME " << std::endl;
-				m_freespaceTracker->GetOrientation(yaw, pitch, roll, s.userFrame);
-				trackerOrientationState = convEulerToQuat(yaw, pitch, roll);
-				osvrDeviceTrackerSendOrientation(m_dev, m_tracker, &trackerOrientationState, 0);
-				break;
-			case FREESPACE_MESSAGE_ALWAYSONRESPONSE:
-				//std::cout << "FREESPACE_MESSAGE_ALWAYSONRESPONSE " << std::endl;
-				break;
-			case FREESPACE_MESSAGE_DATAMODERESPONSE:
-				//std::cout << "FREESPACE_MESSAGE_DATAMODERESPONSE " << std::endl;
-				break;
-			case FREESPACE_MESSAGE_PRODUCTIDRESPONSE:
-				//std::cout << "FREESPACE_MESSAGE_PRODUCTIDRESPONSE " << std::endl;
-				break;
-			case FREESPACE_MESSAGE_DATAMODECONTROLV2RESPONSE:
-				//std::cout << "FREESPACE_MESSAGE_DATAMODECONTROLV2RESPONSE " << std::endl;
-				break;
-			case FREESPACE_MESSAGE_MOTIONENGINEOUTPUT:
-				m_freespaceTracker->GetOrientation(yaw, pitch, roll, s.userFrame);
-				trackerOrientationState = convEulerToQuat(yaw, pitch, roll);
-				osvrDeviceTrackerSendOrientation(m_dev, m_tracker, &trackerOrientationState, 0);
-				break;
-			default:
-				//std::cout << "Received an unhandled message from freespace device. " << std::endl;
-				break;
-			}
-			return OSVR_RETURN_SUCCESS;
-		}
-		else
-		{
-			return OSVR_RETURN_FAILURE;
-		}
-
-		
+		/// Report the identity pose for sensor 0
+		OSVR_OrientationState pose = { m_myVal, 0, 0, 1 };
+		osvrDeviceTrackerSendOrientation(m_dev, m_tracker, &pose, 0);
+		return OSVR_RETURN_SUCCESS;
     }
-	static OSVR_OrientationState convEulerToQuat(long yaw, long pitch,
-		long roll) {
-
-		const double rawToRad = M_PI / 32768.0f;
-
-		// convert raw values to radians
-		double yawRad = yaw * rawToRad;
-		double pitchRad = pitch * rawToRad;
-		double rollRad = roll * rawToRad;
-		// invert roll to correct rolling direction
-		rollRad *= -1.0;
-
-		/* put angles into radians and divide by two, since all angles in
-		* formula
-		*  are (angle/2)
-		*/
-
-		double half_yaw = yawRad / 2.0;
-		double half_pitch = pitchRad / 2.0;
-		double half_roll = rollRad / 2.0;
-
-		double cosYaw = cos(half_yaw);
-		double sinYaw = sin(half_yaw);
-
-		double cosPitch = cos(half_pitch);
-		double sinPitch = sin(half_pitch);
-
-		double cosRoll = cos(half_roll);
-		double sinRoll = sin(half_roll);
-
-		double x = sinRoll * cosPitch * cosYaw - cosRoll * sinPitch * sinYaw;
-		double y = cosRoll * sinPitch * cosYaw + sinRoll * cosPitch * sinYaw;
-		double z = cosRoll * cosPitch * sinYaw - sinRoll * sinPitch * cosYaw;
-
-		double w = cosRoll * cosPitch * cosYaw + sinRoll * sinPitch * sinYaw;
-
-		OSVR_OrientationState trackerCoords = { w, y, z, x };
-
-		return trackerCoords;
-	}
-
-
-
   private:
     osvr::pluginkit::DeviceToken m_dev;
     OSVR_TrackerDeviceInterface m_tracker;
-    FreespaceTracker* m_freespaceTracker;
 	osvr::util::time::TimeValue m_timestamp;
+	double m_myVal;
 	
 };
 
 class HardwareDetection {
   public:
-	  HardwareDetection(){}
+	 HardwareDetection() : m_found(false) {}
     OSVR_ReturnCode operator()(OSVR_PluginRegContext ctx) {
 
         std::cout << "PLUGIN: Got a hardware detection request" << std::endl;
-		// create a freespace tracker for the first device.
-		printf("Tracker's name is %s.\n", TRACKER_NAME);
-		std::cout << "PLUGIN: Initialized a Freespace device! " << std::endl;
-			
-		/// Create our device object
-		osvr::pluginkit::registerObjectForDeletion(ctx, new FreespaceDevice(ctx, new FreespaceTracker(TRACKER_NAME,0, false, true)));
-		
-		//std::cout << "PLUGIN: Error opening freespace device:  " << TRACKER_NAME << std::endl;
-		/*m_freespaceTracker = FreespaceTracker::create(TRACKER_NAME, deviceCount, false, true);
-		if (!m_freespaceTracker) {
-			fprintf(stderr, "Error opening freespace device: %s\n", TRACKER_NAME);
-			return OSVR_RETURN_FAILURE;
-		}*/						
-		return OSVR_RETURN_SUCCESS;
+        if (!m_found) {
+            std::cout << "PLUGIN: We have detected our Freespace device! Doing "
+                         "setup stuff!" << std::endl;
+            m_found = true;
+
+            /// Create our device object, passing the context
+            osvr::pluginkit::registerObjectForDeletion(ctx, new FreespaceDevice(ctx));
+        }
+        return OSVR_RETURN_SUCCESS;
     }
-	FreespaceTracker* tracker;
 
   private:
     /// @brief Have we found our device yet? (this limits the plugin to one
     /// instance)
-	char *TRACKER_NAME = "FreespaceDevice";
-	FreespaceTracker* m_freespaceTracker;
-	int deviceCount = 0;
+	  bool m_found;
 };
 } // namespace
 
 OSVR_PLUGIN(com_osvr_FSM9) {
+	/// Register custom message type
+	osvrDeviceRegisterMessageType(ctx, "FreespaceDevice", &dummyMessage);
+
     osvr::pluginkit::PluginContext context(ctx);
 
     /// Register a detection callback function object.

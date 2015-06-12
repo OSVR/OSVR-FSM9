@@ -7,28 +7,15 @@
   "interfaces": {
     "tracker": {
       "count": 1,
-      "bounded": true,
+      "bounded": false,
       "position": false,
       "orientation": true
     }
   },
-  "semantic": {
-    "hmd": "tracker/0"
-  },
-  "automaticAliases": {
-    "/me/head": {
-      "rotate": {
-        "axis": "x",
-        "degrees": 90
-      },
-      "child": {
-        "changeBasis": {
-          "x": "-x",
-          "y": "-z",
-          "z": "y"
-        },
-        "child": "semantic/hmd"
-      }
+  "semantics": {
+    "value": {
+      "$target": "tracker/0"
     }
   }
+  
 }

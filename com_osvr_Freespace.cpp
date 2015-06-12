@@ -63,8 +63,13 @@ namespace {
 			osvrDeviceTrackerConfigure(opts, &m_tracker);
 
 			/// Create an asynchronous (threaded) device
-			m_dev.initAsync(ctx, "FreespaceDevice", opts);
+			m_dev.initAsync(ctx, "Freespace", opts);
+
+			/// Send JSON descriptor
+			m_dev.sendJsonDescriptor(com_osvr_Freespace_json);
+
 			_deviceId = deviceId;
+			printf("Registering update callback deviceId=%d\n", _deviceId);
 			/// Sets the update callback
 			m_dev.registerUpdateCallback(this);
 		}
@@ -85,7 +90,7 @@ namespace {
 					// Interrupted happens if you type CTRL-C or if you
 					// type CTRL-Z and background the app on Linux.
 					//continue;
-					printf("FREESPACE_ERROR_TIMEOUT\n", rc);
+					//printf("FREESPACE_ERROR_TIMEOUT\n", rc);
 				}
 				if (rc != FREESPACE_SUCCESS) {
 					// Close communications with the device
@@ -101,14 +106,13 @@ namespace {
 
 				// freespace_printMessage(stdout, &message); // This just prints the basic message fields
 				if (message.messageType == FREESPACE_MESSAGE_MOTIONENGINEOUTPUT) {
-					rc = freespace_util_getAngularVelocity(&message.motionEngineOutput, &angVel);
+					//rc = freespace_util_getAngularVelocity(&message.motionEngineOutput, &angVel);
+					rc = freespace_util_getAngPos(&message.motionEngineOutput, &angVel);
 					if (rc == 0) {
 						printf("X: % 6.2f, Y: % 6.2f, Z: % 6.2f\n", angVel.x, angVel.y, angVel.z);
-						OSVR_OrientationState orientation = { angVel.x, angVel.y, angVel.z, 1 };
+						OSVR_OrientationState orientation = { angVel.x, angVel.y, angVel.z, angVel.w };
 						osvrDeviceTrackerSendOrientation(m_dev, m_tracker, &orientation, 0);
-					}
-
-					
+					}		
 				}			
 
 			return OSVR_RETURN_SUCCESS;
@@ -127,69 +131,91 @@ namespace {
 		
 	class HardwareDetection {
 	public:
-		HardwareDetection() {}
+		HardwareDetection() : deviceId(0){}
 		OSVR_ReturnCode operator()(OSVR_PluginRegContext ctx) {
 
-			std::cout << "PLUGIN: Got a hardware detection request" << std::endl;
-			// Initialize the freespace library
-			rc = freespace_init();
-			if (rc != FREESPACE_SUCCESS) {
-				printf("Initialization error. rc=%d\n", rc);
-				return 1;
-			}
-			printf("Scanning for Freespace devices...\n");
-			// Get the ID of the first device in the list of availble devices
-			rc = freespace_getDeviceList(&deviceId, 1, &numIds);
-			if (numIds == 0) {
-				printf("Didn't find any devices.\n");
-				return 1;
-			}
-
-			printf("Found a device with id %d. Trying to open it...\n", deviceId);
-			// Prepare to communicate with the device found above
-			rc = freespace_openDevice(deviceId);
-			if (rc != FREESPACE_SUCCESS) {
-				printf("Error opening device: %d\n", rc);
-				return 1;
-			}
-			// Display the device information.
-			//printDeviceInfo(deviceId);
-
-			// Make sure any old messages are cleared out of the system
-			rc = freespace_flush(deviceId);
-			if (rc != FREESPACE_SUCCESS) {
-				printf("Error flushing device: %d\n", rc);
-				return 1;
-			}
-
-			// Configure the device for motion outputs
-			printf("Sending message to enable motion data.\n");
-			memset(&message, 0, sizeof(message)); // Make sure all the message fields are initialized to 0.
-
-			message.messageType = FREESPACE_MESSAGE_DATAMODECONTROLV2REQUEST;
-			message.dataModeControlV2Request.packetSelect = 8;  // MotionEngine Outout
-			message.dataModeControlV2Request.mode = 0;          // Set full motion
-			message.dataModeControlV2Request.formatSelect = 0;  // MEOut format 0
-			message.dataModeControlV2Request.ff0 = 1;           // Pointer fields
-			message.dataModeControlV2Request.ff3 = 1;           // Angular velocity fields
-
-			rc = freespace_sendMessage(deviceId, &message);
-			if (rc != FREESPACE_SUCCESS) {
-				printf("Could not send message: %d.\n", rc);
-			}
-
-			/// Create our device object, passing the context
-			osvr::pluginkit::registerObjectForDeletion(ctx, new FreespaceDevice(ctx, deviceId));
+				std::cout << "PLUGIN: Got a hardware detection request" << std::endl;
+				if (!m_found)
+				{
+					m_found = true;
+					// Initialize the freespace library
+					rc = freespace_init();
+					if (rc != FREESPACE_SUCCESS) {
+						printf("Initialization error. rc=%d\n", rc);
+						return OSVR_RETURN_FAILURE;
+					}
+				}
+				
 			
+				printf("Scanning for Freespace devices...\n");
+				// Get the ID of the first device in the list of availble devices
+				rc = freespace_getDeviceList(&deviceIds, FREESPACE_MAXIMUM_DEVICE_COUNT, &numIds);
+				if (numIds == 0) {
+					printf("Didn't find any devices.\n");
+					return OSVR_RETURN_FAILURE;
+				}
+				printf("Found %d devices ", numIds);
+
+				printf("Found a device with id %d. Trying to open it...\n", deviceId);
+				// Prepare to communicate with the device found above
+				rc = freespace_openDevice(deviceId);
+				if (rc != FREESPACE_SUCCESS) {
+					printf("Error opening device: %d\n", rc);
+					return OSVR_RETURN_FAILURE;
+				}
+				// Display the device information.
+				//printDeviceInfo(deviceId);
+
+				// Make sure any old messages are cleared out of the system
+				rc = freespace_flush(deviceId);
+				if (rc != FREESPACE_SUCCESS) {
+					printf("Error flushing device: %d\n", rc);
+					return OSVR_RETURN_FAILURE;
+				}
+
+				// Configure the device for motion outputs
+				printf("Sending message to enable motion data.\n");
+				memset(&message, 0, sizeof(message)); // Make sure all the message fields are initialized to 0.
+
+				/*message.messageType = FREESPACE_MESSAGE_DATAMODECONTROLV2REQUEST;
+				message.dataModeControlV2Request.packetSelect = 8;  // MotionEngine Outout
+				message.dataModeControlV2Request.mode = 0;          // Set full motion
+				message.dataModeControlV2Request.formatSelect = 0;  // MEOut format 0
+				message.dataModeControlV2Request.ff0 = 1;           // Pointer fields
+				message.dataModeControlV2Request.ff3 = 1;           // Angular velocity fields*/
+				message.messageType = FREESPACE_MESSAGE_DATAMODECONTROLV2REQUEST;
+				message.dataModeControlV2Request.packetSelect = 8; // MotionEngine Output
+				message.dataModeControlV2Request.mode = 4; // Full Motion On
+				message.dataModeControlV2Request.formatSelect = 0; // Format 0
+				if (false) {
+					message.dataModeControlV2Request.ff1 = 1; // Enable Linear Acceleration
+					message.dataModeControlV2Request.ff3 = 1; // Enable Angular Velocity
+					message.dataModeControlV2Request.ff0 = 1; // Enable cursor and buttons
+				}
+				if (true) {
+					message.dataModeControlV2Request.ff6 = 1; // Enable Angular Position
+					message.dataModeControlV2Request.ff0 = 1; // Enable cursor and buttons
+				}
+
+				rc = freespace_sendMessage(deviceId, &message);
+				if (rc != FREESPACE_SUCCESS) {
+					printf("Could not send message: %d.\n", rc);
+					return OSVR_RETURN_FAILURE;
+				}
+				printf("Registering object for deletion: %d.\n", deviceId);
+				/// Create our device object, passing the context
+				osvr::pluginkit::registerObjectForDeletion(ctx, new FreespaceDevice(ctx, deviceId));
+				//deviceId++;
 			return OSVR_RETURN_SUCCESS;
 		}
 
 	private:
 		struct freespace_message message;
-		FreespaceDeviceId deviceIds[FREESPACE_MAXIMUM_DEVICE_COUNT];
+		FreespaceDeviceId deviceIds;
 		FreespaceDeviceId deviceId;
 		int numIds;	// The number of device Ids found
 		int rc;		// Return Code
+		bool m_found = false;
 	};
 
 } // namespace

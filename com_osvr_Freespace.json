@@ -12,7 +12,7 @@
       "orientation": true
     }
   },
-  "semantics": {
+  "semantic": {
     "value": {
       "$target": "tracker/0"
     }

@@ -13,22 +13,9 @@
     }
   },
   "semantic": {
-    "hmd": "tracker/0"
-  },
-  "automaticAliases": {
-    "/me/head": {
-      "rotate": {
-        "axis": "x",
-        "degrees": 90
-      },
-      "child": {
-        "changeBasis": {
-          "x": "-x",
-          "y": "-z",
-          "z": "y"
-        },
-        "child": "semantic/hmd"
-      }
+    "value": {
+      "$target": "tracker/0"
     }
   }
+  
 }

@@ -55,7 +55,16 @@ namespace {
 	OSVR_MessageType freespaceMessage;
 	class FreespaceDevice {
 	public:
-		FreespaceDevice(OSVR_PluginRegContext ctx, FreespaceDeviceId deviceId) {
+		FreespaceDevice(OSVR_PluginRegContext ctx, FreespaceDeviceId freespaceId, 
+		struct FreespaceDeviceInfo* deviceInfo, const char *name) {
+			memcpy(&_deviceInfo, deviceInfo, sizeof(_deviceInfo));
+			_deviceId = freespaceId;
+			// 5 buttons + a scroll wheel
+			//vrpn_Button::num_buttons = 5;
+			//vrpn_Dial::num_dials = 1;
+			//memset(&_lastBodyFrameTime, 0, sizeof(_lastBodyFrameTime));
+			//_timestamp.tv_sec = 0;
+
 			/// Create the initialization options
 			OSVR_DeviceInitOptions opts = osvrDeviceCreateInitOptions(ctx);
 
@@ -63,12 +72,11 @@ namespace {
 			osvrDeviceTrackerConfigure(opts, &m_tracker);
 
 			/// Create an asynchronous (threaded) device
-			m_dev.initAsync(ctx, "Freespace", opts);
+			m_dev.initAsync(ctx, name, opts);
 
 			/// Send JSON descriptor
 			m_dev.sendJsonDescriptor(com_osvr_Freespace_json);
-
-			_deviceId = deviceId;
+		
 			printf("Registering update callback deviceId=%d\n", _deviceId);
 			/// Sets the update callback
 			m_dev.registerUpdateCallback(this);
@@ -131,43 +139,51 @@ namespace {
 		
 	class HardwareDetection {
 	public:
-		HardwareDetection() : deviceId(0){}
+		HardwareDetection() : device_index(0), _freespace_initialized(false){}
 		OSVR_ReturnCode operator()(OSVR_PluginRegContext ctx) {
-
-				std::cout << "PLUGIN: Got a hardware detection request" << std::endl;
-				if (!m_found)
-				{
-					m_found = true;
-					// Initialize the freespace library
-					rc = freespace_init();
-					if (rc != FREESPACE_SUCCESS) {
-						printf("Initialization error. rc=%d\n", rc);
-						return OSVR_RETURN_FAILURE;
-					}
-				}
-				
 			
+			std::cout << "PLUGIN: Got a hardware detection request" << std::endl;
+			//initialize the freespace library
+			freespaceInit();
+			if (rc != FREESPACE_SUCCESS) {
+				printf("Initialization error. rc=%d\n", rc);
+				return OSVR_RETURN_FAILURE;
+			}
+			FreespaceDeviceId devices[FREESPACE_MAXIMUM_DEVICE_COUNT];
+			int numIds = 0;	// The number of device Ids found
+						
 				printf("Scanning for Freespace devices...\n");
-				// Get the ID of the first device in the list of availble devices
-				rc = freespace_getDeviceList(&deviceIds, FREESPACE_MAXIMUM_DEVICE_COUNT, &numIds);
-				if (numIds == 0) {
+				// Get the list of availble devices
+				rc = freespace_getDeviceList(devices, FREESPACE_MAXIMUM_DEVICE_COUNT, &numIds);
+				if ((rc != FREESPACE_SUCCESS) || (numIds < (device_index + 1))) {
 					printf("Didn't find any devices.\n");
 					return OSVR_RETURN_FAILURE;
 				}
+				
 				printf("Found %d devices ", numIds);
 
-				printf("Found a device with id %d. Trying to open it...\n", deviceId);
+				FreespaceDeviceId freespaceId = devices[device_index];
+				struct FreespaceDeviceInfo deviceInfo;
+				// Retrieve the information for the device
+				rc = freespace_getDeviceInfo(freespaceId, &deviceInfo);
+				if (rc != FREESPACE_SUCCESS) {
+					return OSVR_RETURN_FAILURE;
+				}
+				// Display the device information.
+				printf("Opened device with deviceInfo:\n");
+				printDeviceInfo(freespaceId);
+
+				printf("\nTrying to open device id %d\n", freespaceId);
 				// Prepare to communicate with the device found above
-				rc = freespace_openDevice(deviceId);
+				rc = freespace_openDevice(freespaceId);
 				if (rc != FREESPACE_SUCCESS) {
 					printf("Error opening device: %d\n", rc);
 					return OSVR_RETURN_FAILURE;
 				}
-				// Display the device information.
-				//printDeviceInfo(deviceId);
+								
 
 				// Make sure any old messages are cleared out of the system
-				rc = freespace_flush(deviceId);
+				rc = freespace_flush(freespaceId);
 				if (rc != FREESPACE_SUCCESS) {
 					printf("Error flushing device: %d\n", rc);
 					return OSVR_RETURN_FAILURE;
@@ -175,6 +191,7 @@ namespace {
 
 				// Configure the device for motion outputs
 				printf("Sending message to enable motion data.\n");
+				struct freespace_message message;
 				memset(&message, 0, sizeof(message)); // Make sure all the message fields are initialized to 0.
 
 				/*message.messageType = FREESPACE_MESSAGE_DATAMODECONTROLV2REQUEST;
@@ -197,25 +214,73 @@ namespace {
 					message.dataModeControlV2Request.ff0 = 1; // Enable cursor and buttons
 				}
 
-				rc = freespace_sendMessage(deviceId, &message);
+				rc = freespace_sendMessage(device_index, &message);
 				if (rc != FREESPACE_SUCCESS) {
 					printf("Could not send message: %d.\n", rc);
 					return OSVR_RETURN_FAILURE;
 				}
-				printf("Registering object for deletion: %d.\n", deviceId);
+				printf("Registering object for deletion: %d.\n", device_index);
 				/// Create our device object, passing the context
-				osvr::pluginkit::registerObjectForDeletion(ctx, new FreespaceDevice(ctx, deviceId));
-				//deviceId++;
+				osvr::pluginkit::registerObjectForDeletion(ctx, new FreespaceDevice(ctx, device_index, &deviceInfo, "Freespace"+device_index));
+				device_index++;
 			return OSVR_RETURN_SUCCESS;
 		}
 
 	private:
-		struct freespace_message message;
-		FreespaceDeviceId deviceIds;
-		FreespaceDeviceId deviceId;
-		int numIds;	// The number of device Ids found
-		int rc;		// Return Code
-		bool m_found = false;
+		bool _freespace_initialized;
+		int rc; //return code
+		int device_index;
+		/**
+		* printVersionInfo
+		* Common helper function that prints the application running and the version of libfreespace
+		* being used.
+		*
+		* @param appname A pointer to a string containing the application name. Typically from the arguments
+		* passed in to main.
+		*/
+		void printVersionInfo(const char* appname) {
+			printf("%s: Using libfreespace %s\n",
+				appname,
+				freespace_version());
+		}
+
+		/**
+		* printDeviceInfo
+		* Common helper function that prints the information about a device
+		*
+		* @param id The ID of the device to print the info for.
+		* @param FREESPACE_SUCCESS or an error
+		*/
+		int printDeviceInfo(FreespaceDeviceId id) {
+			struct FreespaceDeviceInfo info;
+			int rc;
+
+			// Retrieve the information for the device
+			rc = freespace_getDeviceInfo(id, &info);
+			if (rc != FREESPACE_SUCCESS) {
+				return rc;
+			}
+
+			printf("    Device = %s\n    Vendor ID  = 0x%x (%d)\n    Product ID = 0x%x (%d)\n",
+				info.name, info.vendor, info.vendor, info.product, info.product);
+
+			return FREESPACE_SUCCESS;
+		}
+		void freespaceInit()
+		{
+			if (!_freespace_initialized) {
+				_freespace_initialized = true;
+				rc = freespace_init();
+				if (rc != FREESPACE_SUCCESS) {
+					printf("freespaceInit: failed to init freespace lib. rc=%d\n", rc);
+					_freespace_initialized = false;
+				}
+				else
+				{
+					printf("Freespace library initialized.\n");
+				}
+			}
+		}
 	};
 
 } // namespace
@@ -223,7 +288,7 @@ namespace {
 OSVR_PLUGIN(com_osvr_Freespace) {
 	/// Register custom message type
 	//osvrDeviceRegisterMessageType(ctx, "FreespaceDevice", &freespaceMessage);
-
+	printf("com_osvr_Freespace Plugin loaded. Registering PluginContext\n");
 	osvr::pluginkit::PluginContext context(ctx);
 
 	/// Register a detection callback function object.

@@ -12,11 +12,6 @@
             "y": "-z",
             "z": "-x"
           },
-          "child": {
-            "rotate": {
-              "degrees": 0,
-              "axis": "x"
-            },
             "child": {
 				"tracker": "/com_osvr_Freespace/Freespace",
 				"sensor": 0

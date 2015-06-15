@@ -23,14 +23,6 @@ Sensics, Inc.
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Needed to get M_PI from math.h on Windows.
-#define _USE_MATH_DEFINES
-
-#define SCOOP_PID 0xC0B3
-#define FSM6_PID 0xC080
-#define FSM9_PID 0xC0E0
-
-// Internal Includes
 // Internal Includes
 #include <osvr/PluginKit/PluginKit.h>
 #include <osvr/PluginKit/TrackerInterfaceC.h>
@@ -39,8 +31,7 @@ Sensics, Inc.
 #include "com_osvr_Freespace_json.h"
 
 // Library/third-party includes
-#include <math.h>
-#include "freespace/freespace.h"
+#include <freespace/freespace.h>
 #include <freespace/freespace_util.h>
 #ifdef _WIN32
 #pragma comment(lib, "Setupapi.lib")
@@ -53,6 +44,8 @@ Sensics, Inc.
 #include <set>
 #include <array>
 #include <assert.h>
+#include <sstream>
+#include <stdexcept>
 
 // Anonymous namespace to avoid symbol collision
 namespace {

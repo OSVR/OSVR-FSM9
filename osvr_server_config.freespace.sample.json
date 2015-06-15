@@ -15,8 +15,7 @@
             "child": {
 				"tracker": "/com_osvr_Freespace/Freespace",
 				"sensor": 0
-			}
-          }
+			}         
         }       
       }
     }

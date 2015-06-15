@@ -113,10 +113,15 @@ namespace {
 				// freespace_printMessage(stdout, &message); // This just prints the basic message fields
 				if (message.messageType == FREESPACE_MESSAGE_MOTIONENGINEOUTPUT) {
 					//rc = freespace_util_getAngularVelocity(&message.motionEngineOutput, &angVel);
-					rc = freespace_util_getAngPos(&message.motionEngineOutput, &angVel);
+					rc = freespace_util_getAngPos(&message.motionEngineOutput, &angPos);
 					if (rc == 0) {
-						printf("X: % 6.2f, Y: % 6.2f, Z: % 6.2f\n", angVel.x, angVel.y, angVel.z);
-						OSVR_OrientationState orientation = { angVel.x, angVel.y, angVel.z, angVel.w };
+						//printf("X: % 6.2f, Y: % 6.2f, Z: % 6.2f\n", angVel.x, angVel.y, angVel.z);
+						OSVR_OrientationState orientation;// = { angPos.w, angPos.x, -angPos.y, angPos.z };
+						osvrQuatSetIdentity(&orientation);
+						osvrQuatSetW(&orientation, angPos.w);
+						osvrQuatSetX(&orientation, angPos.x);
+						osvrQuatSetY(&orientation, angPos.y);
+						osvrQuatSetZ(&orientation, angPos.z);
 						osvrDeviceTrackerSendOrientation(m_dev, m_tracker, &orientation, 0);
 					}		
 				}
@@ -136,7 +141,7 @@ namespace {
 		FreespaceDeviceId _deviceId;
 		int rc;
 		
-		struct MultiAxisSensor angVel;
+		struct MultiAxisSensor angPos;
 	};
 		
 	class HardwareDetection {

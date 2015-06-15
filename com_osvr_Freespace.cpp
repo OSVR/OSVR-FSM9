@@ -307,8 +307,6 @@ class HardwareDetection {
         return retVal;
     }
     OSVR_ReturnCode operator()(OSVR_PluginRegContext ctx) {
-        std::cout << "PLUGIN: Got a hardware detection request" << std::endl;
-
         std::cout << "Scanning for Freespace devices" << std::endl;
         std::vector<FreespaceDeviceId> devices = getDeviceList();
         std::cout << "Got " << devices.size() << " devices" << std::endl;
@@ -325,6 +323,7 @@ class HardwareDetection {
                 new FreespaceDevice(ctx, std::move(newDevice), name.c_str()));
             m_handledDevices.insert(id);
         }
+        std::cout << "\n" << std::endl;
         return OSVR_RETURN_SUCCESS;
     }
 

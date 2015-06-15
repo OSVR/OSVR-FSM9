@@ -40,7 +40,7 @@ Sensics, Inc.
 
 // Library/third-party includes
 #include <math.h>
-#include "freespace/freespace.h";
+#include "freespace/freespace.h"
 #include <freespace/freespace_util.h>
 #pragma comment ( lib, "Setupapi.lib")
 #pragma comment ( lib, "hid.lib")
@@ -52,11 +52,10 @@ Sensics, Inc.
 
 // Anonymous namespace to avoid symbol collision
 namespace {
-	OSVR_MessageType freespaceMessage;
 	class FreespaceDevice {
 	public:
 		FreespaceDevice(OSVR_PluginRegContext ctx, FreespaceDeviceId freespaceId, 
-		struct FreespaceDeviceInfo* deviceInfo, const char *name) {
+		struct FreespaceDeviceInfo* deviceInfo, const char* name) {
 			memcpy(&_deviceInfo, deviceInfo, sizeof(_deviceInfo));
 			_deviceId = freespaceId;
 			// 5 buttons + a scroll wheel
@@ -89,7 +88,7 @@ namespace {
 
 			// A loop to read messages
 			//printf("Listening for messages on device with id %d\n", _deviceId);
-
+			struct freespace_message message;
 				rc = freespace_readMessage(_deviceId, &message, 100);
 				if (rc == FREESPACE_ERROR_TIMEOUT ||
 					rc == FREESPACE_ERROR_INTERRUPTED) {
@@ -100,11 +99,10 @@ namespace {
 					//continue;
 					//printf("FREESPACE_ERROR_TIMEOUT\n", rc);
 				}
-				if (rc != FREESPACE_SUCCESS) {
+				if (rc != FREESPACE_SUCCESS && rc != FREESPACE_ERROR_TIMEOUT && rc != FREESPACE_ERROR_INTERRUPTED) {
 					// Close communications with the device
 					printf("Cleaning up...\n");
 					freespace_closeDevice(_deviceId);
-					/** --- END EXAMPLE FINALIZATION OF DEVICE --- **/
 
 					// Cleanup the library
 					freespace_exit();
@@ -117,11 +115,15 @@ namespace {
 					//rc = freespace_util_getAngularVelocity(&message.motionEngineOutput, &angVel);
 					rc = freespace_util_getAngPos(&message.motionEngineOutput, &angVel);
 					if (rc == 0) {
-						//printf("X: % 6.2f, Y: % 6.2f, Z: % 6.2f\n", angVel.x, angVel.y, angVel.z);
+						printf("X: % 6.2f, Y: % 6.2f, Z: % 6.2f\n", angVel.x, angVel.y, angVel.z);
 						OSVR_OrientationState orientation = { angVel.x, angVel.y, angVel.z, angVel.w };
 						osvrDeviceTrackerSendOrientation(m_dev, m_tracker, &orientation, 0);
 					}		
-				}			
+				}
+				else
+				{
+					printf("unhandled message type:%d\n", message.messageType);
+				}
 
 			return OSVR_RETURN_SUCCESS;
 		}
@@ -133,36 +135,37 @@ namespace {
 		FreespaceDeviceInfo _deviceInfo;
 		FreespaceDeviceId _deviceId;
 		int rc;
-		struct freespace_message message;
+		
 		struct MultiAxisSensor angVel;
 	};
 		
 	class HardwareDetection {
 	public:
-		HardwareDetection() : device_index(0), _freespace_initialized(false){}
+		HardwareDetection() : _freespace_initialized(false), m_found(false){}
 		OSVR_ReturnCode operator()(OSVR_PluginRegContext ctx) {
-			
 			std::cout << "PLUGIN: Got a hardware detection request" << std::endl;
-			//initialize the freespace library
-			freespaceInit();
-			if (rc != FREESPACE_SUCCESS) {
-				printf("Initialization error. rc=%d\n", rc);
-				return OSVR_RETURN_FAILURE;
-			}
-			FreespaceDeviceId devices[FREESPACE_MAXIMUM_DEVICE_COUNT];
-			int numIds = 0;	// The number of device Ids found
-						
-				printf("Scanning for Freespace devices...\n");
-				// Get the list of availble devices
-				rc = freespace_getDeviceList(devices, FREESPACE_MAXIMUM_DEVICE_COUNT, &numIds);
-				if ((rc != FREESPACE_SUCCESS) || (numIds < (device_index + 1))) {
-					printf("Didn't find any devices.\n");
+			if (!m_found){
+				//initialize the freespace library
+				freespaceInit();
+				if (rc != FREESPACE_SUCCESS) {
+					printf("Initialization error. rc=%d\n", rc);
 					return OSVR_RETURN_FAILURE;
 				}
 				
+				int numIds = 0;	// The number of device Ids found
+				FreespaceDeviceId devices[FREESPACE_MAXIMUM_DEVICE_COUNT];
+
+				printf("Scanning for Freespace devices...\n");
+				// Get the list of availble devices
+				rc = freespace_getDeviceList(devices, FREESPACE_MAXIMUM_DEVICE_COUNT, &numIds);
+				if ((rc != FREESPACE_SUCCESS)) {
+					printf("Didn't find any devices.\n");
+					return OSVR_RETURN_FAILURE;
+				}
+
 				printf("Found %d devices ", numIds);
 
-				FreespaceDeviceId freespaceId = devices[device_index];
+				FreespaceDeviceId freespaceId = devices[0];
 				struct FreespaceDeviceInfo deviceInfo;
 				// Retrieve the information for the device
 				rc = freespace_getDeviceInfo(freespaceId, &deviceInfo);
@@ -180,7 +183,7 @@ namespace {
 					printf("Error opening device: %d\n", rc);
 					return OSVR_RETURN_FAILURE;
 				}
-								
+
 
 				// Make sure any old messages are cleared out of the system
 				rc = freespace_flush(freespaceId);
@@ -214,22 +217,23 @@ namespace {
 					message.dataModeControlV2Request.ff0 = 1; // Enable cursor and buttons
 				}
 
-				rc = freespace_sendMessage(device_index, &message);
+				rc = freespace_sendMessage(freespaceId, &message);
 				if (rc != FREESPACE_SUCCESS) {
 					printf("Could not send message: %d.\n", rc);
 					return OSVR_RETURN_FAILURE;
 				}
-				printf("Registering object for deletion: %d.\n", device_index);
+				printf("Registering object for deletion: %d.\n", freespaceId);
 				/// Create our device object, passing the context
-				osvr::pluginkit::registerObjectForDeletion(ctx, new FreespaceDevice(ctx, device_index, &deviceInfo, "Freespace"+device_index));
-				device_index++;
+				osvr::pluginkit::registerObjectForDeletion(ctx, new FreespaceDevice(ctx, freespaceId, &deviceInfo, "Freespace"));
+			}
 			return OSVR_RETURN_SUCCESS;
 		}
 
 	private:
 		bool _freespace_initialized;
 		int rc; //return code
-		int device_index;
+		bool m_found;
+		int device_index = 0;
 		/**
 		* printVersionInfo
 		* Common helper function that prints the application running and the version of libfreespace

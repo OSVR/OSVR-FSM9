@@ -42,8 +42,10 @@ Sensics, Inc.
 #include <math.h>
 #include "freespace/freespace.h"
 #include <freespace/freespace_util.h>
-#pragma comment ( lib, "Setupapi.lib")
-#pragma comment ( lib, "hid.lib")
+#ifdef _WIN32
+#pragma comment(lib, "Setupapi.lib")
+#pragma comment(lib, "hid.lib")
+#endif
 
 // Standard includes
 #include <iostream>

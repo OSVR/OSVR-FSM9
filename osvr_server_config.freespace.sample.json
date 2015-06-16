@@ -13,7 +13,7 @@
             "z": "-x"
           },
             "child": {
-				"tracker": "/com_osvr_Freespace/Freespace",
+				"tracker": "/com_osvr_Freespace/Freespace0",
 				"sensor": 0
 			}         
         }       

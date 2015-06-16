@@ -196,9 +196,9 @@ class FreespaceDevice {
 
         OSVR_OrientationState orientation;
         osvrQuatSetW(&orientation, angPos.w);
-        osvrQuatSetX(&orientation, angPos.x);
-        osvrQuatSetY(&orientation, angPos.y);
-        osvrQuatSetZ(&orientation, angPos.z);
+        osvrQuatSetX(&orientation, angPos.y);
+        osvrQuatSetY(&orientation, -angPos.z);
+        osvrQuatSetZ(&orientation, angPos.x);
         osvrDeviceTrackerSendOrientation(m_dev, m_tracker, &orientation, 0);
 
         return OSVR_RETURN_SUCCESS;

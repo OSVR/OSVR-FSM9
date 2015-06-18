@@ -1,41 +1,44 @@
 #
 # FSM-9 plugin for OSVR
 #
-cmake_minimum_required(VERSION 2.8.12)
-project(com_osvr_FSM9)
+cmake_minimum_required(VERSION 3.2)
+project(com_osvr_Freespace)
+set(CMAKE_CXX_STANDARD 11)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 find_package(osvr REQUIRED)
 find_package(LibFreespace REQUIRED)
-find_package(VRPN REQUIRED)
-find_package(jsoncpp REQUIRED)
 
+# Generate our JSON header file
+osvr_convert_json(com_osvr_Freespace_json
+    com_osvr_Freespace.json
+    "${CMAKE_CURRENT_BINARY_DIR}/com_osvr_Freespace_json.h")
 
-osvr_convert_json(com_osvr_FSM9_json
-    com_osvr_FSM9.json
-    "${CMAKE_CURRENT_BINARY_DIR}/com_osvr_FSM9_json.h")
+# Be able to find our generated header file.
+include_directories("${CMAKE_CURRENT_BINARY_DIR}")
 
-osvr_add_plugin(com_osvr_FSM9 com_osvr_FSM9.cpp
-    DevicesWithParameters.cpp
-    DevicesWithParameters.h
-    VRPNMultiserver.cpp
-    VRPNMultiserver.h
-    "${CMAKE_CURRENT_BINARY_DIR}/com_osvr_FSM9_json.h")
+# Build and install the plugin
+osvr_add_plugin(com_osvr_Freespace
+	com_osvr_Freespace.cpp
+    "${CMAKE_CURRENT_BINARY_DIR}/com_osvr_Freespace_json.h")
 
-target_include_directories(com_osvr_FSM9
+#target_compile_features(com_osvr_Freespace PRIVATE
+#    cxx_auto_type
+#    cxx_defaulted_functions
+#    cxx_deleted_functions
+#    cxx_explicit_conversions
+#    cxx_range_for
+#    cxx_rvalue_references)
+
+target_include_directories(com_osvr_Freespace
     PRIVATE
-	${JSONCPP_INCLUDE_DIR}
 	${LIBFREESPACE_INCLUDE_DIR}
-    ${VRPN_INCLUDE_DIRS}
     ${CMAKE_CURRENT_BINARY_DIR})
 
-target_link_libraries(com_osvr_FSM9
+target_link_libraries(com_osvr_Freespace
     osvr::osvrPluginKitCpp
-    osvr::osvrVRPNServer
-	${JSONCPP_LIBRARY}
-	${LIBFREESPACE_LIBRARY}
-    ${VRPN_SERVER_LIBRARIES})
+	${LIBFREESPACE_LIBRARY})
 
 install(FILES
     CONTRIBUTING.md

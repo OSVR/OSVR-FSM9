@@ -1,0 +1,23 @@
+{
+  "plugins": [
+    "com_osvr_Freespace"
+  ],
+  "routes": [
+    {
+      "destination": "/me/head",
+      "source": {
+	  "child": {
+          "changeBasis": {
+            "x": "-y",
+            "y": "-z",
+            "z": "-x"
+          },
+            "child": {
+				"tracker": "/com_osvr_Freespace/Freespace0",
+				"sensor": 0
+			}         
+        }       
+      }
+    }
+  ]
+}

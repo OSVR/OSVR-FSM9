@@ -11,7 +11,7 @@ It requires a patched build of VRPN with the following files: https://www.dropbo
 
 Here is a build with those files: <a href="https://www.dropbox.com/s/wl8cjcvrdr5u4p9/vrpn.7z?dl=0">vrpn-freespace-patch</a>.
 
-Also requires <a href="https://launchpad.net/libfreespace">libfreespace 0.7</a>.
+Also requires <a href="https://github.com/hcrest/libfreespace">libfreespace 0.7</a>.
 
 In CMake gui, set CMAKE_PREFIX_PATH to the OSVR-Core Snapshot directory.
 You may also need to manually set libfreespace and jsoncpp root directories.
